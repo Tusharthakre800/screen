@@ -1,0 +1,395 @@
+<!-- <!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Signage Player</title>
+    <style>
+      html, body { height: 100%; margin: 0; background: #000; }
+      #stage { position: fixed; inset: 0; display: grid; place-items: center; }
+      video, img { max-width: 100vw; max-height: 100vh; }
+      .hidden { display: none; }
+      #controls { position: fixed; top: 10px; left: 10px; display: flex; gap: 8px; z-index: 10; }
+      #controls button { background: rgba(255,255,255,0.9); color: #111; border: none; border-radius: 6px; padding: 8px 12px; cursor: pointer; font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; }
+      #controls button:hover { background: #e2e8f0; }
+    </style>
+  </head>
+  <body>
+
+    <div id="controls">
+      <button id="btnRefresh">Refresh</button>
+    </div>
+
+    <div id="stage">
+      <video id="video" class="hidden" autoplay muted playsinline></video>
+      <img id="image" class="hidden" />
+    </div>
+    <script>
+      const search = new URLSearchParams(location.search);
+      const paramApiBase = search.get('api') || localStorage.getItem('apiBase');
+      const isFile = location.protocol === 'file:';
+      const defaultApiBase = isFile ? 'http://localhost:5000' : location.origin;
+      const API_BASE = paramApiBase || defaultApiBase;
+      if (paramApiBase) localStorage.setItem('apiBase', paramApiBase);
+      const PING_INTERVAL_MS = 10000; // 10 seconds per spec
+      const RELOAD_INTERVAL_MS = 15000; // auto-reload playlist every 15s
+      const STORAGE_KEY = 'signage_playlist';
+
+      function getDeviceId() {
+        let id = localStorage.getItem('playerId');
+        if (!id) {
+          id = 'device_' + Math.random().toString(36).slice(2, 10);
+          localStorage.setItem('playerId', id);
+        }
+        return id;
+      }
+
+      async function loadPlaylistOnce() {
+        try {
+          const res = await fetch(`${API_BASE}/api/player`, { cache: 'no-store' });
+          if (!res.ok) throw new Error('playlist fetch failed');
+          const data = await res.json();
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+          return data;
+        } catch (err) {
+          const cached = localStorage.getItem(STORAGE_KEY);
+          return cached ? JSON.parse(cached) : { playlist: [] };
+        }
+      }
+
+      function resolveUrl(entry) {
+        if (entry.publicUrl) {
+          const pu = entry.publicUrl;
+          if (/^https?:\/\//i.test(pu)) return pu;
+          return `${API_BASE}${pu.startsWith('/') ? '' : '/'}${pu}`;
+        }
+        if (entry.storedFilename) return `${API_BASE}/uploads/${entry.storedFilename}`;
+        return '';
+      }
+
+      async function ping() {
+        const payload = {
+          playerId: getDeviceId(),
+          info: { ua: navigator.userAgent, online: navigator.onLine },
+        };
+        try {
+          await fetch(`${API_BASE}/api/player/ping`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+          });
+        } catch (err) { /* ignore */ }
+      }
+
+      let playbackEpoch = 0;
+      let lastPlaylistSig = null;
+      function playPlaylistLoop(entries) {
+        const videoEl = document.getElementById('video');
+        const imageEl = document.getElementById('image');
+        const localEpoch = ++playbackEpoch; // invalidate any previous loop
+        let idx = 0;
+
+        async function playNext() {
+          if (localEpoch !== playbackEpoch) return; // stop if a new loop started
+
+          if (!entries || entries.length === 0) {
+            imageEl.src = '';
+            imageEl.classList.remove('hidden');
+            videoEl.classList.add('hidden');
+            imageEl.alt = 'No content';
+            setTimeout(playNext, 3000);
+            return;
+          }
+
+          const entry = entries[idx];
+          const url = resolveUrl(entry);
+
+          if (entry.type === 'video') {
+            videoEl.src = url;
+            videoEl.muted = true;
+            videoEl.autoplay = true;
+            videoEl.playsInline = true;
+            imageEl.classList.add('hidden');
+            videoEl.classList.remove('hidden');
+            videoEl.onerror = () => {
+              if (localEpoch !== playbackEpoch) return;
+              idx = (idx + 1) % entries.length;
+              playNext();
+            };
+            try {
+              await videoEl.play();
+            } catch (e) {
+              try {
+                videoEl.load();
+                await videoEl.play();
+              } catch {
+                setTimeout(() => {
+                  if (localEpoch !== playbackEpoch) return;
+                  idx = (idx + 1) % entries.length;
+                  playNext();
+                }, 1000);
+                return;
+              }
+            }
+            videoEl.onended = () => {
+              if (localEpoch !== playbackEpoch) return;
+              idx = (idx + 1) % entries.length;
+              playNext();
+            };
+          } else {
+            imageEl.src = url;
+            videoEl.classList.add('hidden');
+            imageEl.classList.remove('hidden');
+            const durMs = Math.max(1000, (entry.durationSec || 10) * 1000);
+            setTimeout(() => {
+              if (localEpoch !== playbackEpoch) return;
+              idx = (idx + 1) % entries.length;
+              playNext();
+            }, durMs);
+          }
+        }
+
+        playNext();
+      }
+
+      async function reloadPlaylist() {
+        const data = await loadPlaylistOnce();
+        const entries = (data.playlist || []).filter((e) => !e.expiryAt || new Date(e.expiryAt).getTime() > Date.now());
+        const sig = JSON.stringify(entries.map((e) => ({ contentId: e.contentId, type: e.type, durationSec: e.durationSec, publicUrl: e.publicUrl, storedFilename: e.storedFilename })));
+        if (sig !== lastPlaylistSig) {
+          lastPlaylistSig = sig;
+          playPlaylistLoop(entries);
+        }
+      }
+
+      // Wire up refresh control
+      document.getElementById('btnRefresh').addEventListener('click', () => location.reload());
+
+      (async function start() {
+        const playlistData = await loadPlaylistOnce();
+        const entries = (playlistData.playlist || []).filter((e) => !e.expiryAt || new Date(e.expiryAt).getTime() > Date.now());
+        // Start heartbeat independently of playback
+        ping();
+        setInterval(ping, PING_INTERVAL_MS);
+        // Start playback loop
+        lastPlaylistSig = JSON.stringify(entries.map((e) => ({ contentId: e.contentId, type: e.type, durationSec: e.durationSec, publicUrl: e.publicUrl, storedFilename: e.storedFilename })));
+        playPlaylistLoop(entries);
+        // Auto-reload playlist periodically
+        setInterval(reloadPlaylist, RELOAD_INTERVAL_MS);
+      })();
+    </script>
+  </body>
+</html> -->
+
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Signage Player</title>
+
+  <style>
+    html, body {
+      height: 100%;
+      margin: 0;
+      background: #000;
+      overflow: hidden;
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+    }
+
+    #stage {
+      position: fixed;
+      inset: 0;
+      display: grid;
+      place-items: center;
+    }
+
+    video, img {
+      max-width: 100vw;
+      max-height: 100vh;
+    }
+
+    .hidden { display: none; }
+
+    #controls {
+      position: fixed;
+      top: 10px;
+      left: 10px;
+      z-index: 30;
+    }
+
+    #controls button {
+      background: rgba(255,255,255,0.9);
+      color: #111;
+      border: none;
+      border-radius: 6px;
+      padding: 8px 12px;
+      cursor: pointer;
+    }
+
+    /* ===== STATUS DOT (BOTTOM LEFT, DOUBLE SIZE) ===== */
+    #status {
+      position: fixed;
+      bottom: 18px;
+      left: 18px;
+      width: 36px;          /* double size */
+      height: 36px;         /* double size */
+      border-radius: 50%;
+      z-index: 25;
+      opacity: 0.95;
+    }
+
+    #status.online {
+      background: #00ff00;
+      box-shadow: 0 0 20px #00ff00;
+    }
+
+    #status.offline {
+      background: #ff3b3b;
+      box-shadow: 0 0 20px #ff3b3b;
+    }
+  </style>
+</head>
+
+<body>
+
+  <!-- CONTROLS -->
+  <div id="controls">
+    <button onclick="location.reload()">Refresh</button>
+  </div>
+
+  <!-- CONTENT -->
+  <div id="stage">
+    <video id="video" class="hidden" autoplay muted playsinline></video>
+    <img id="image" class="hidden" />
+  </div>
+
+  <!-- STATUS DOT -->
+  <div id="status" class="offline"></div>
+
+<script>
+  const search = new URLSearchParams(location.search);
+  const paramApiBase = search.get('api') || localStorage.getItem('apiBase');
+  const isFile = location.protocol === 'file:';
+  const defaultApiBase = isFile ? 'http://localhost:5000' : location.origin;
+  const API_BASE = paramApiBase || defaultApiBase;
+  if (paramApiBase) localStorage.setItem('apiBase', paramApiBase);
+
+  const PING_INTERVAL_MS = 10000;
+  const RELOAD_INTERVAL_MS = 15000;
+  const STATUS_THRESHOLD_MS = 30000;
+  const STORAGE_KEY = 'signage_playlist';
+
+  let lastPingAt = 0;
+
+  function getDeviceId() {
+    let id = localStorage.getItem('playerId');
+    if (!id) {
+      id = 'device_' + Math.random().toString(36).slice(2, 10);
+      localStorage.setItem('playerId', id);
+    }
+    return id;
+  }
+
+  function updateStatusUI(isOnline) {
+    const el = document.getElementById("status");
+    el.className = isOnline ? "online" : "offline";
+  }
+
+  async function ping() {
+    try {
+      await fetch(`${API_BASE}/api/player/ping`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          playerId: getDeviceId(),
+          info: { ua: navigator.userAgent, online: navigator.onLine }
+        })
+      });
+
+      lastPingAt = Date.now();
+      updateStatusUI(true);
+    } catch {
+      updateStatusUI(false);
+    }
+  }
+
+  setInterval(() => {
+    updateStatusUI(Date.now() - lastPingAt < STATUS_THRESHOLD_MS);
+  }, 5000);
+
+  async function loadPlaylistOnce() {
+    try {
+      const res = await fetch(`${API_BASE}/api/player`, { cache: 'no-store' });
+      if (!res.ok) throw new Error();
+      const data = await res.json();
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+      return data;
+    } catch {
+      const cached = localStorage.getItem(STORAGE_KEY);
+      return cached ? JSON.parse(cached) : { playlist: [] };
+    }
+  }
+
+  function resolveUrl(e) {
+    if (e.publicUrl) {
+      if (/^https?:\/\//i.test(e.publicUrl)) return e.publicUrl;
+      return `${API_BASE}${e.publicUrl.startsWith('/') ? '' : '/'}${e.publicUrl}`;
+    }
+    if (e.storedFilename) return `${API_BASE}/uploads/${e.storedFilename}`;
+    return '';
+  }
+
+  let epoch = 0;
+  function playPlaylistLoop(list) {
+    const v = document.getElementById("video");
+    const i = document.getElementById("image");
+    const myEpoch = ++epoch;
+    let idx = 0;
+
+    async function next() {
+      if (myEpoch !== epoch) return;
+
+      if (!list.length) {
+        i.classList.remove("hidden");
+        v.classList.add("hidden");
+        i.src = "";
+        setTimeout(next, 3000);
+        return;
+      }
+
+      const e = list[idx];
+      const url = resolveUrl(e);
+
+      if (e.type === "video") {
+        v.src = url;
+        i.classList.add("hidden");
+        v.classList.remove("hidden");
+        try { await v.play(); } catch {}
+        v.onended = () => { idx = (idx + 1) % list.length; next(); };
+      } else {
+        i.src = url;
+        v.classList.add("hidden");
+        i.classList.remove("hidden");
+        setTimeout(() => { idx = (idx + 1) % list.length; next(); }, (e.durationSec || 10) * 1000);
+      }
+    }
+    next();
+  }
+
+  async function reloadPlaylist() {
+    const d = await loadPlaylistOnce();
+    playPlaylistLoop(d.playlist || []);
+  }
+
+  (async function start() {
+    ping();
+    setInterval(ping, PING_INTERVAL_MS);
+    const d = await loadPlaylistOnce();
+    playPlaylistLoop(d.playlist || []);
+    setInterval(reloadPlaylist, RELOAD_INTERVAL_MS);
+  })();
+</script>
+
+</body>
+</html>
