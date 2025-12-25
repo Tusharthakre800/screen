@@ -83,7 +83,6 @@ const corsOptions = {
 
 /* 🔥 VERY IMPORTANT ORDER */
 app.use(cors(corsOptions));
-app.options('*', cors(corsOptions)); // <-- preflight fix
 
 app.use(express.json());
 app.use(morgan('dev'));
