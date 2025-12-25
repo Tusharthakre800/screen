@@ -1,8 +1,8 @@
 const express = require('express');
 const cors = require('cors');
 const morgan = require('morgan');
-const rawOrigins = process.env.CLIENT_ORIGIN || 'http://localhost:5174';
-const allowedOrigins = rawOrigins.split(',').map((s) => s.trim()).filter(Boolean);
+const frontendEnv = process.env.CLIENT_ORIGIN || 'http://localhost:5173';
+const allowList = frontendEnv.split(',').map((s) => s.trim()).filter(Boolean);
 const { uploadsDir } = require('./middleware/upload');
 const authRoutes = require('./routes/auth.routes');
 const contentRoutes = require('./routes/content.routes');
@@ -11,18 +11,21 @@ const { servePlayer } = require('./controllers/player.controller');
 
 const app = express();
 
-app.use(cors({
-  origin: function(origin, callback) {
+const corsOptions = {
+  origin: (origin, callback) => {
     if (!origin) return callback(null, true);
-    if (allowedOrigins.includes('*') || allowedOrigins.includes(origin)) {
+    if (allowList.includes('*') || allowList.includes(origin)) {
       return callback(null, true);
     }
     return callback(null, false);
   },
-  credentials: false,
-  methods: ['GET','HEAD','PUT','PATCH','POST','DELETE'],
-  allowedHeaders: ['Content-Type', 'Authorization'],
-}));
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'Cookie'],
+  optionsSuccessStatus: 204,
+};
+
+app.use(cors(corsOptions));
 app.use(express.json());
 app.use(morgan('dev'));
 
