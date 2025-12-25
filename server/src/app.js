@@ -88,7 +88,15 @@ app.options('*', cors(corsOptions)); // <-- preflight fix
 app.use(express.json());
 app.use(morgan('dev'));
 
+
+// hello world route
+app.get('/hello', (req, res) => {
+  res.json({ message: 'Hello World!' });
+});
+
+
 // static uploads
+
 app.use('/uploads', express.static(uploadsDir));
 
 // API routers
