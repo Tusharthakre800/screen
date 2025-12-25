@@ -58,5 +58,12 @@ export function useApi() {
       headers: { 'Content-Type': 'application/json', ...authHeaders() },
     }).then(handle);
 
-  return { login, listContent, uploadContent, savePlaylist, getPlaylist, listPlayers };
+  const createUser = (name, email, password, role = 'user') =>
+    fetch(`${baseUrl}/api/auth/users`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...authHeaders() },
+      body: JSON.stringify({ name, email, password, role }),
+    }).then(handle);
+
+  return { login, listContent, uploadContent, savePlaylist, getPlaylist, listPlayers, createUser };
 }

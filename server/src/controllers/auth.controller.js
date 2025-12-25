@@ -13,4 +13,27 @@ async function login(req, res) {
   res.json({ token, user: { email: user.email, role: user.role } });
 }
 
-module.exports = { login };
+async function createUser(req, res) {
+  try {
+    const { name, email, password, role } = req.body || {};
+    if (!name || !email || !password) {
+      return res.status(400).json({ message: 'Missing required fields' });
+    }
+    const existing = await User.findOne({ email });
+    if (existing) {
+      return res.status(409).json({ message: 'Email already exists' });
+    }
+    const hash = await bcrypt.hash(password, 10);
+    const doc = await User.create({
+      name,
+      email,
+      passwordHash: hash,
+      role: role === 'admin' ? 'admin' : 'user',
+    });
+    res.status(201).json({ id: doc._id, email: doc.email, role: doc.role });
+  } catch (err) {
+    res.status(500).json({ message: 'Failed to create user' });
+  }
+}
+
+module.exports = { login, createUser };
