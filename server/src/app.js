@@ -59,6 +59,7 @@ const { uploadsDir } = require('./middleware/upload');
 const authRoutes = require('./routes/auth.routes');
 const contentRoutes = require('./routes/content.routes');
 const playerApiRoutes = require('./routes/player.api.routes');
+const timeRoutes = require('./routes/time.routes');
 const { servePlayer } = require('./controllers/player.controller');
 
 const app = express();
@@ -102,6 +103,7 @@ app.use('/uploads', express.static(uploadsDir));
 app.use('/api/auth', authRoutes);
 app.use('/api/content', contentRoutes);
 app.use('/api/player', playerApiRoutes);
+app.use('/api/time', timeRoutes);
 
 // Player page
 app.get('/player', servePlayer);
