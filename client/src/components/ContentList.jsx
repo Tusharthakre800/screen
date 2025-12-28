@@ -73,7 +73,7 @@ export default function ContentList() {
 
 
 const Card = ({ title, data }) => (
-  <div className="bg-white rounded-2xl shadow border border-slate-200 flex flex-col h-[520px]">
+  <div className="bg-white rounded-2xl shadow border border-slate-200 flex flex-col">
     
     {/* Card Header */}
     <div className="px-5 py-4 border-b border-slate-200">
@@ -83,7 +83,7 @@ const Card = ({ title, data }) => (
     </div>
 
     {/* Scrollable Content */}
-    <div className="flex-1 overflow-y-auto px-5 py-4 space-y-3">
+    <div className="px-5 py-4 space-y-3 overflow-auto max-h-[60vh]">
       {data.length === 0 ? (
         <p className="text-sm text-slate-500">No items available.</p>
       ) : (

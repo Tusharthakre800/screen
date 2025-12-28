@@ -42,7 +42,7 @@ export default function PlayerStatusList() {
   }, []);
 
   return (
-    <section className="min-h-[calc(100vh-32rem)] bg-slate-50 px-4">
+    <section className="min-h-[calc(100vh-14rem)] bg-slate-50 px-4 border-b border-slate-200">
       {/* Page Header */}
       <div className="max-w-7xl mx-auto mb-6">
         <h1 className="text-2xl font-bold text-slate-800">
@@ -55,10 +55,10 @@ export default function PlayerStatusList() {
 
       {/* Content */}
       <div className="max-w-7xl mx-auto">
-<div className="bg-white rounded-2xl border border-slate-200 shadow flex flex-col h-[440px]">
+<div className="bg-white rounded-2xl border border-slate-200 shadow flex flex-col h-[400px]">
           
           {/* Header */}
-          <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between">
+          <div className="px-6  py-4 border-b border-slate-200 flex items-center justify-between">
             <h3 className="text-lg font-semibold text-slate-800">
               Connected Players
             </h3>

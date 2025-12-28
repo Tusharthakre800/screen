@@ -61,7 +61,7 @@ export default function PlaylistEditor() {
   };
 
   return (
-    <section className="min-h-[calc(100vh-4rem)] bg-slate-50 px-4 py-6">
+    <section className=" bg-slate-50 px-4 py-6 border-b border-slate-200">
       {/* Page Header */}
       <div className="max-w-7xl mx-auto mb-6">
         <h1 className="text-2xl font-bold text-slate-800">
@@ -76,14 +76,14 @@ export default function PlaylistEditor() {
       <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-3 gap-6">
         
         {/* Library */}
-        <div className="bg-white rounded-2xl border border-slate-200 shadow flex flex-col h-[540px]">
+        <div className="bg-white rounded-2xl border border-slate-200 shadow flex flex-col">
           <div className="px-5 py-4 border-b border-slate-200">
             <h3 className="text-lg font-semibold text-slate-800">
               Media Library
             </h3>
           </div>
 
-          <div className="flex-1 overflow-y-auto px-5 py-4 space-y-3">
+          <div className="px-5 py-4 space-y-3 overflow-auto max-h-[60vh]">
             {library.length === 0 && (
               <p className="text-sm text-slate-500">No media available</p>
             )}
@@ -114,14 +114,14 @@ export default function PlaylistEditor() {
         </div>
 
         {/* Playlist */}
-        <div className="lg:col-span-2 bg-white rounded-2xl border border-slate-200 shadow flex flex-col h-[540px]">
+        <div className="lg:col-span-2 bg-white rounded-2xl border border-slate-200 shadow flex flex-col">
           <div className="px-5 py-4 border-b border-slate-200">
             <h3 className="text-lg font-semibold text-slate-800">
               Playlist Timeline
             </h3>
           </div>
 
-          <div className="flex-1 overflow-y-auto px-5 py-4 space-y-3">
+          <div className="px-5 py-4 space-y-3 overflow-auto max-h-[60vh]">
             {entries.length === 0 && (
               <p className="text-sm text-slate-500">
                 Playlist is empty
