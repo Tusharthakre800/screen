@@ -1,7 +1,6 @@
 // Polls player heartbeat statuses and derives online/offline based on lastSeen threshold.
 import { useEffect, useState } from "react";
 import { useApi } from "../api";
-import { nowMs } from "../utils/time";
 
 const THRESHOLD_MS = 30000; // 30 seconds
 
@@ -18,7 +17,7 @@ export default function PlayerStatusList() {
         const res = await listPlayers();
         if (!mounted) return;
 
-        const now = nowMs();
+        const now = Date.now();
         const data = (res.data || []).map((p) => ({
           ...p,
           ua: p.info?.ua,

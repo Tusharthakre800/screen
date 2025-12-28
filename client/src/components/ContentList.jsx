@@ -1,7 +1,6 @@
 // Lists uploaded content, grouped by expiry status. Includes thumbnails and countdown.
 import { useEffect, useState } from 'react';
 import { useApi } from '../api';
-import { nowMs } from '../utils/time';
 
 function Countdown({ expiryAt }) {
   const [left, setLeft] = useState('');
@@ -68,7 +67,7 @@ export default function ContentList() {
   if (loading) return <p className="text-sm text-slate-600">Loading…</p>;
   if (error) return <p className="text-sm text-red-600">{error}</p>;
 
-  const now = nowMs();
+  const now = Date.now();
   const expiredItems = items.filter((item) => (item.isExpired) || (item.expiryAt && new Date(item.expiryAt).getTime() <= now));
   const activeItems = items.filter((item) => !(item.isExpired) && (!item.expiryAt || new Date(item.expiryAt).getTime() > now));
 
