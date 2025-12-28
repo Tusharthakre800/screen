@@ -15,11 +15,11 @@ export const AuthProvider = ({ children }) => {
   const login = (newToken) => {
     try {
       const payload = JSON.parse(atob(newToken.split('.')[1]));
-      // const userData = { email: payload.email, role: payload.role };
+      const userData = { email: payload.email, role: payload.role };
       localStorage.setItem('auth_token', newToken);
-      // localStorage.setItem('auth_user', JSON.stringify(userData));
+      localStorage.setItem('auth_user', JSON.stringify(userData));
       setToken(newToken);
-      // setUser(userData);
+      setUser(userData);
       const expiresAt = payload.exp * 1000;
       const timeout = expiresAt - Date.now();
       setTimeout(() => logout(), timeout);
@@ -64,6 +64,7 @@ export const AuthProvider = ({ children }) => {
     logout,
     isAuthenticated: !!token,
     restoring,            // <-- expose flag
+    loading: restoring,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

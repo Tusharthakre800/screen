@@ -8,7 +8,7 @@ export default function Navbar({ onOpenAddUser }) {
   const { user, logout, loading } = useAuth();
   const [open, setOpen] = useState(false);
 
-  const isAdmin = !!user && user.role === "admin";
+  const isAdmin = user?.role === "admin";
 
   const linkClass = ({ isActive }) =>
     `px-3 py-2 rounded-md text-sm font-medium transition
@@ -38,30 +38,30 @@ export default function Navbar({ onOpenAddUser }) {
 
           {/* Desktop Right Actions */}
           {!loading && user && (
-            <div className="nav-desktop items-center gap-3">
-              {isAdmin && (
-                <button
-                  onClick={onOpenAddUser}
-                  className="px-3 py-2 text-sm rounded-md text-sm font-medium text-slate-700 hover:bg-slate-100"
-                >
-                  Add User
-                </button>
-              )}
-              <div className="flex items-center gap-2 min-w-0">
-                <div className="h-8 w-8 flex items-center justify-center rounded-full bg-blue-100 text-blue-700 text-sm font-semibold">
-                  {user?.email?.[0]?.toUpperCase()}
-                </div>
-                <span className="text-sm text-slate-700 truncate max-w-[180px]">
-                  {user?.email}
-                </span>
-              </div>
+          <div className="nav-desktop items-center gap-3">
+            {isAdmin && (
               <button
-                onClick={logout}
-                className="px-3 py-1.5 text-sm rounded-md text-sm font-medium bg-red-600 text-white hover:bg-red-900"
+                onClick={onOpenAddUser}
+                className="px-3 py-2 text-sm rounded-md text-sm font-medium text-slate-700 hover:bg-slate-100"
               >
-                Logout
+                Add User
               </button>
+            )}
+            <div className="flex items-center gap-2 min-w-0">
+              <div className="h-8 w-8 flex items-center justify-center rounded-full bg-blue-100 text-blue-700 text-sm font-semibold">
+                {user?.email?.[0]?.toUpperCase()}
+              </div>
+              <span className="text-sm text-slate-700 truncate max-w-[180px]">
+                {user?.email}
+              </span>
             </div>
+            <button
+              onClick={logout}
+              className="px-3 py-1.5 text-sm rounded-md text-sm font-medium bg-red-600 text-white hover:bg-red-900"
+            >
+              Logout
+            </button>
+          </div>
           )}
 
           {/* Mobile Menu Button */}
