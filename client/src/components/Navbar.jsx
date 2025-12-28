@@ -5,10 +5,10 @@ import { useState } from "react";
 import { Menu, X } from "lucide-react";
 
 export default function Navbar({ onOpenAddUser }) {
-  const { user, logout } = useAuth();
+  const { user, logout, loading } = useAuth();
   const [open, setOpen] = useState(false);
 
-  const isAdmin = user?.role === "admin";
+  const isAdmin = !!user && user.role === "admin";
 
   const linkClass = ({ isActive }) =>
     `px-3 py-2 rounded-md text-sm font-medium transition
@@ -37,30 +37,32 @@ export default function Navbar({ onOpenAddUser }) {
           </div>
 
           {/* Desktop Right Actions */}
-          <div className="nav-desktop items-center gap-3">
-            {isAdmin && (
-              <button
-                onClick={onOpenAddUser}
-                className="px-3 py-2 text-sm rounded-md text-sm font-medium text-slate-700 hover:bg-slate-100"
-              >
-                Add User
-              </button>
-            )}
-            <div className="flex items-center gap-2 min-w-0">
-              <div className="h-8 w-8 flex items-center justify-center rounded-full bg-blue-100 text-blue-700 text-sm font-semibold">
-                {user?.email?.[0]?.toUpperCase()}
+          {!loading && user && (
+            <div className="nav-desktop items-center gap-3">
+              {isAdmin && (
+                <button
+                  onClick={onOpenAddUser}
+                  className="px-3 py-2 text-sm rounded-md text-sm font-medium text-slate-700 hover:bg-slate-100"
+                >
+                  Add User
+                </button>
+              )}
+              <div className="flex items-center gap-2 min-w-0">
+                <div className="h-8 w-8 flex items-center justify-center rounded-full bg-blue-100 text-blue-700 text-sm font-semibold">
+                  {user?.email?.[0]?.toUpperCase()}
+                </div>
+                <span className="text-sm text-slate-700 truncate max-w-[180px]">
+                  {user?.email}
+                </span>
               </div>
-              <span className="text-sm text-slate-700 truncate max-w-[180px]">
-                {user?.email}
-              </span>
+              <button
+                onClick={logout}
+                className="px-3 py-1.5 text-sm rounded-md text-sm font-medium bg-red-600 text-white hover:bg-red-900"
+              >
+                Logout
+              </button>
             </div>
-            <button
-              onClick={logout}
-              className="px-3 py-1.5 text-sm rounded-md text-sm font-medium bg-red-600 text-white hover:bg-red-900"
-            >
-              Logout
-            </button>
-          </div>
+          )}
 
           {/* Mobile Menu Button */}
           <button className="nav-mobile p-2 rounded hover:bg-slate-100" onClick={() => setOpen(!open)}>
@@ -89,6 +91,7 @@ export default function Navbar({ onOpenAddUser }) {
             </button>
           )}
 
+          {!loading && user && (
           <div className=" pt-3 border-t border-slate-200 flex items-center justify-between">
   {/* User info */}
   <div className="flex items-center gap-2 min-w-0">
@@ -110,6 +113,7 @@ export default function Navbar({ onOpenAddUser }) {
     Logout
   </button>
 </div>
+          )}
 
         </div>
       )}

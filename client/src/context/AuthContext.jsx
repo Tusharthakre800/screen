@@ -1,3 +1,5 @@
+
+
 // Authentication context handling JWT storage, user info, and route protection.
 import { createContext, useContext, useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
