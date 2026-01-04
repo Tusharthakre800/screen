@@ -64,7 +64,39 @@ export default function ContentList() {
     return { label: 'Active', tone: 'bg-green-100 text-green-700' };
   };
 
-  if (loading) return <p className="text-sm text-slate-600">Loading…</p>;
+  if (loading) {
+    return (
+      <section className="max-w-7xl mx-auto px-4 py-6">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {[0,1].map((col) => (
+            <div key={col} className="bg-white rounded-2xl shadow border border-slate-200">
+              <div className="px-5 py-4 border-b border-slate-200">
+                <div className="h-5 w-40 bg-slate-200 rounded animate-pulse"></div>
+              </div>
+              <div className="px-5 py-4 space-y-3 max-h-[60vh] overflow-auto">
+                {Array.from({ length: 6 }).map((_, i) => (
+                  <div key={i} className="rounded-xl border border-slate-200 p-3 bg-slate-50">
+                    <div className="flex gap-3">
+                      <div className="w-16 h-16 rounded-lg bg-slate-200 animate-pulse"></div>
+                      <div className="flex-1 min-w-0 space-y-2">
+                        <div className="h-4 w-2/3 bg-slate-200 rounded animate-pulse"></div>
+                        <div className="h-3 w-1/3 bg-slate-200 rounded animate-pulse"></div>
+                        <div className="h-3 w-24 bg-slate-200 rounded animate-pulse"></div>
+                        <div className="flex justify-between items-center mt-2">
+                          <div className="h-5 w-24 bg-slate-200 rounded-full animate-pulse"></div>
+                          <div className="h-3 w-16 bg-slate-200 rounded animate-pulse"></div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      </section>
+    );
+  }
   if (error) return <p className="text-sm text-red-600">{error}</p>;
 
   const now = Date.now();

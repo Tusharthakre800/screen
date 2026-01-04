@@ -61,7 +61,7 @@ export default function PlayerStatusList() {
           <div className="px-6  py-4 border-b border-slate-200 flex items-center justify-between">
             <h3 className="text-lg font-semibold text-slate-800">
               Connected Players
-            </h3>
+            </h3>``
             <span className="text-sm text-slate-500">
               {players.length} total
             </span>
