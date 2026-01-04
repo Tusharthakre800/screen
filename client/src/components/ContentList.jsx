@@ -1,5 +1,5 @@
 // Lists uploaded content, grouped by expiry status. Includes thumbnails and countdown.
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useApi } from '../api';
 
 function Countdown({ expiryAt }) {
@@ -30,25 +30,21 @@ export default function ContentList() {
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
-  const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000';
 
   useEffect(() => {
-    let mounted = true;
     const load = async () => {
       setLoading(true);
       setError(null);
       try {
         const res = await listContent();
-        if (!mounted) return;
         setItems(res.data || []);
       } catch (err) {
         setError(err?.response?.data?.message || 'Failed to load content');
       } finally {
-        if (mounted) setLoading(false);
+        setLoading(false);
       }
     };
     load();
-    return () => { mounted = false; };
   }, []);
 
   const formatDateTime = (val) => {
@@ -58,10 +54,11 @@ export default function ContentList() {
     return d.toLocaleString();
   };
 
-  const computeStatus = (expiryMs, isExpired, nowMs) => {
+  const computeStatus = (expiryAt, isExpired) => {
     if (isExpired) return { label: 'Expired', tone: 'bg-red-100 text-red-700' };
-    if (!expiryMs) return { label: 'No expiry', tone: 'bg-slate-100 text-slate-700' };
-    const diff = expiryMs - nowMs;
+    if (!expiryAt) return { label: 'No expiry', tone: 'bg-slate-100 text-slate-700' };
+    const exp = new Date(expiryAt).getTime();
+    const diff = exp - Date.now();
     if (diff <= 0) return { label: 'Expired', tone: 'bg-red-100 text-red-700' };
     if (diff <= 24 * 60 * 60 * 1000) return { label: 'Expires soon', tone: 'bg-amber-100 text-amber-700' };
     return { label: 'Active', tone: 'bg-green-100 text-green-700' };
@@ -70,39 +67,12 @@ export default function ContentList() {
   if (loading) return <p className="text-sm text-slate-600">Loading…</p>;
   if (error) return <p className="text-sm text-red-600">{error}</p>;
 
-  const processed = useMemo(() => {
-    const now = Date.now();
-    return (items || []).map((item) => {
-      const expiryMs = item.expiryAt ? new Date(item.expiryAt).getTime() : null;
-      const isImage = item.mimeType?.startsWith('image/');
-      const status = computeStatus(expiryMs, item.isExpired, now);
-      const fileSizeMB = item.fileSize ? (item.fileSize / 1024 / 1024).toFixed(2) : null;
-      const formattedExpiry = formatDateTime(item.expiryAt);
-      const imgSrc = isImage
-        ? (/^https?:\/\//i.test(item.publicUrl)
-            ? item.publicUrl
-            : `${baseUrl}${item.publicUrl?.startsWith('/') ? '' : '/'}${item.publicUrl || ''}`)
-        : null;
-      const isActive = !(item.isExpired) && (!expiryMs || expiryMs > now);
-      return { ...item, expiryMs, isImage, status, fileSizeMB, formattedExpiry, imgSrc, isActive };
-    });
-  }, [items, baseUrl]);
-
-  const expiredItems = useMemo(
-    () => processed.filter((it) => !it.isActive),
-    [processed]
-  );
-  const activeItems = useMemo(
-    () => processed.filter((it) => it.isActive),
-    [processed]
-  );
+  const now = Date.now();
+  const expiredItems = items.filter((item) => (item.isExpired) || (item.expiryAt && new Date(item.expiryAt).getTime() <= now));
+  const activeItems = items.filter((item) => !(item.isExpired) && (!item.expiryAt || new Date(item.expiryAt).getTime() > now));
 
 
-const Card = React.memo(({ title, data }) => {
-  const [visibleCount, setVisibleCount] = useState(30);
-  const visible = data.slice(0, visibleCount);
-  const canLoadMore = data.length > visibleCount;
-  return (
+const Card = ({ title, data }) => (
   <div className="bg-white rounded-2xl shadow border border-slate-200 flex flex-col">
     
     {/* Card Header */}
@@ -117,7 +87,10 @@ const Card = React.memo(({ title, data }) => {
       {data.length === 0 ? (
         <p className="text-sm text-slate-500">No items available.</p>
       ) : (
-        visible.map((item) => {
+        data.map((item) => {
+          const status = computeStatus(item.expiryAt, item.isExpired);
+          const isImage = item.mimeType?.startsWith("image/");
+
           return (
             <div
               key={item._id}
@@ -126,11 +99,10 @@ const Card = React.memo(({ title, data }) => {
               <div className="flex gap-3">
                 
                 {/* Thumbnail */}
-                {item.isImage && item.imgSrc && (
+                {isImage && (
                   <img
-                    src={item.imgSrc}
+                    src={`http://localhost:5000${item.publicUrl}`}
                     alt="thumb"
-                    loading="lazy"
                     className="w-16 h-16 object-cover rounded-lg border"
                   />
                 )}
@@ -142,22 +114,20 @@ const Card = React.memo(({ title, data }) => {
                   </p>
 
                   <p className="text-xs text-slate-600">{item.mimeType}</p>
-                  {item.fileSizeMB && (
-                    <p className="text-xs text-slate-600">
-                      {item.fileSizeMB} MB
-                    </p>
-                  )}
+                  <p className="text-xs text-slate-600">
+                    {(item.fileSize / 1024 / 1024).toFixed(2)} MB
+                  </p>
 
                   <p className="text-xs text-slate-500">
-                    {item.formattedExpiry}
+                    {formatDateTime(item.expiryAt)}
                   </p>
 
                   {/* Status Row */}
                   <div className="mt-2 flex items-center justify-between">
                     <span
-                      className={`px-2 py-1 text-xs rounded-full font-medium ${item.status.tone}`}
+                      className={`px-2 py-1 text-xs rounded-full font-medium ${status.tone}`}
                     >
-                      {item.status.label}
+                      {status.label}
                     </span>
 
                     {title === "Active & Upcoming" && item.expiryAt && (
@@ -170,19 +140,9 @@ const Card = React.memo(({ title, data }) => {
           );
         })
       )}
-      {canLoadMore && (
-        <div className="pt-2">
-          <button
-            onClick={() => setVisibleCount((c) => c + 30)}
-            className="px-3 py-1.5 text-sm rounded-md bg-slate-200 hover:bg-slate-300"
-          >
-            Load more
-          </button>
-        </div>
-      )}
     </div>
   </div>
-)});
+);
 return (
   <section className="max-w-7xl mx-auto px-4 py-6">
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
