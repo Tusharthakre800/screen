@@ -95,7 +95,7 @@ export default function PlayerStatusList() {
                   <p className="text-xs text-slate-500">
                     Last seen:{" "}
                     {p.lastSeen
-                      ? new Date(p.lastSeen).toLocaleString()
+                      ? formatInTZ(p.lastSeen)
                       : "N/A"}
                   </p>
                 </div>
