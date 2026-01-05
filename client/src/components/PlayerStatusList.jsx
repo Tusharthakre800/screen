@@ -1,6 +1,7 @@
 // Polls player heartbeat statuses and derives online/offline based on lastSeen threshold.
 import { useEffect, useState } from "react";
 import { useApi } from "../api";
+import { formatInTZ } from "../utils/date";
 
 const THRESHOLD_MS = 30000; // 30 seconds
 
@@ -94,9 +95,7 @@ export default function PlayerStatusList() {
                   </p>
                   <p className="text-xs text-slate-500">
                     Last seen:{" "}
-                    {p.lastSeen
-                      ? new Date(p.lastSeen).toLocaleString()
-                      : "N/A"}
+                    {p.lastSeen ? formatInTZ(p.lastSeen) : "N/A"}
                   </p>
                 </div>
 

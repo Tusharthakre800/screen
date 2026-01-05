@@ -1,6 +1,7 @@
 // Lists uploaded content, grouped by expiry status. Includes thumbnails and countdown.
 import { useEffect, useState } from 'react';
 import { useApi } from '../api';
+import { formatInTZ } from '../utils/date';
 
 function Countdown({ expiryAt }) {
   const [left, setLeft] = useState('');
@@ -47,12 +48,7 @@ export default function ContentList() {
     load();
   }, []);
 
-  const formatDateTime = (val) => {
-    if (!val) return '—';
-    const d = new Date(val);
-    if (Number.isNaN(d.getTime())) return '—';
-    return d.toLocaleString();
-  };
+  const formatDateTime = (val) => formatInTZ(val);
 
   const computeStatus = (expiryAt, isExpired) => {
     if (isExpired) return { label: 'Expired', tone: 'bg-red-100 text-red-700' };
