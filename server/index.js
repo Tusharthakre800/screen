@@ -1,5 +1,4 @@
 require('dotenv').config();
-process.env.TZ = process.env.TZ || 'Asia/Kolkata';
 const app = require('./src/app');
 const { connectDb } = require('./src/config/db');
 const { bootstrapAdmin } = require('./src/utils/bootstrapAdmin');

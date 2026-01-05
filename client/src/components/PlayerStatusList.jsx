@@ -1,7 +1,6 @@
 // Polls player heartbeat statuses and derives online/offline based on lastSeen threshold.
 import { useEffect, useState } from "react";
 import { useApi } from "../api";
-import { formatInTZ } from "../utils/date";
 
 const THRESHOLD_MS = 30000; // 30 seconds
 
@@ -9,15 +8,12 @@ export default function PlayerStatusList() {
   const { listPlayers } = useApi();
   const [players, setPlayers] = useState([]);
   const [error, setError] = useState(null);
-  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     let mounted = true;
-    let initial = true;
 
     const load = async () => {
       try {
-        if (initial) setLoading(true);
         const res = await listPlayers();
         if (!mounted) return;
 
@@ -30,18 +26,10 @@ export default function PlayerStatusList() {
 
         setPlayers(data);
         setError(null);
-        if (initial) {
-          setLoading(false);
-          initial = false;
-        }
       } catch (e) {
         setError(
           e?.response?.data?.message || "Failed to load player statuses"
         );
-        if (initial) {
-          setLoading(false);
-          initial = false;
-        }
       }
     };
 
@@ -53,39 +41,9 @@ export default function PlayerStatusList() {
     };
   }, []);
 
-  if (loading) {
-    return (
-      <section className="min-h-[calc(100vh-14rem)] bg-slate-50 px-4 border-b border-slate-200">
-        <div className="max-w-7xl mx-auto mb-6">
-          <div className="h-6 w-48 bg-slate-200 rounded animate-pulse"></div>
-          <div className="h-4 w-64 bg-slate-200 rounded animate-pulse mt-2"></div>
-        </div>
-        <div className="max-w-7xl mx-auto">
-          <div className="bg-white rounded-2xl border border-slate-200 shadow flex flex-col h-[400px]">
-            <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between">
-              <div className="h-5 w-40 bg-slate-200 rounded animate-pulse"></div>
-              <div className="h-4 w-20 bg-slate-200 rounded animate-pulse"></div>
-            </div>
-            <div className="flex-1 overflow-y-auto px-6 py-4 space-y-3">
-              {Array.from({ length: 6 }).map((_, i) => (
-                <div key={i} className="flex items-center justify-between border border-slate-200 rounded-xl p-4 bg-slate-50">
-                  <div className="min-w-0 space-y-2">
-                    <div className="h-4 w-48 bg-slate-200 rounded animate-pulse"></div>
-                    <div className="h-3 w-64 bg-slate-200 rounded animate-pulse"></div>
-                    <div className="h-3 w-40 bg-slate-200 rounded animate-pulse"></div>
-                  </div>
-                  <div className="h-6 w-16 bg-slate-200 rounded-full animate-pulse"></div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      </section>
-    );
-  }
-
   return (
     <section className="min-h-[calc(100vh-14rem)] bg-slate-50 px-4 border-b border-slate-200">
+      {/* Page Header */}
       <div className="max-w-7xl mx-auto mb-6">
         <h1 className="text-2xl font-bold text-slate-800">
           Player Status
@@ -95,13 +53,15 @@ export default function PlayerStatusList() {
         </p>
       </div>
 
+      {/* Content */}
       <div className="max-w-7xl mx-auto">
-        <div className="bg-white rounded-2xl border border-slate-200 shadow flex flex-col h-[400px]">
+<div className="bg-white rounded-2xl border border-slate-200 shadow flex flex-col h-[400px]">
           
+          {/* Header */}
           <div className="px-6  py-4 border-b border-slate-200 flex items-center justify-between">
             <h3 className="text-lg font-semibold text-slate-800">
               Connected Players
-            </h3>
+            </h3>``
             <span className="text-sm text-slate-500">
               {players.length} total
             </span>
@@ -134,7 +94,9 @@ export default function PlayerStatusList() {
                   </p>
                   <p className="text-xs text-slate-500">
                     Last seen:{" "}
-                    {p.lastSeen ? formatInTZ(p.lastSeen) : "N/A"}
+                    {p.lastSeen
+                      ? new Date(p.lastSeen).toLocaleString()
+                      : "N/A"}
                   </p>
                 </div>
 
