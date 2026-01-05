@@ -7,10 +7,12 @@ export default function PlaylistEditor() {
   const [library, setLibrary] = useState([]);
   const [entries, setEntries] = useState([]);
   const [status, setStatus] = useState(null);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const load = async () => {
       try {
+        setLoading(true);
         const [libRes, plRes] = await Promise.all([
           listContent(),
           getPlaylist().catch(() => ({ data: null })),
@@ -19,6 +21,8 @@ export default function PlaylistEditor() {
         setEntries(plRes?.data?.playlist || []);
       } catch {
         /* silent */
+      } finally {
+        setLoading(false);
       }
     };
     load();
@@ -59,6 +63,54 @@ export default function PlaylistEditor() {
       });
     }
   };
+
+  if (loading) {
+    return (
+      <section className=" bg-slate-50 px-4 py-6 border-b border-slate-200">
+        <div className="max-w-7xl mx-auto mb-6">
+          <div className="h-6 w-48 bg-slate-200 rounded animate-pulse"></div>
+          <div className="h-4 w-64 bg-slate-200 rounded animate-pulse mt-2"></div>
+        </div>
+        <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div className="bg-white rounded-2xl border border-slate-200 shadow flex flex-col">
+            <div className="px-5 py-4 border-b border-slate-200">
+              <div className="h-5 w-40 bg-slate-200 rounded animate-pulse"></div>
+            </div>
+            <div className="px-5 py-4 space-y-3 overflow-auto max-h-[60vh]">
+              {Array.from({ length: 6 }).map((_, i) => (
+                <div key={i} className="flex items-center justify-between border border-slate-200 rounded-xl p-3 bg-slate-50">
+                  <div className="min-w-0 space-y-2">
+                    <div className="h-4 w-2/3 bg-slate-200 rounded animate-pulse"></div>
+                    <div className="h-3 w-1/3 bg-slate-200 rounded animate-pulse"></div>
+                  </div>
+                  <div className="h-7 w-16 bg-slate-200 rounded animate-pulse"></div>
+                </div>
+              ))}
+            </div>
+          </div>
+          <div className="lg:col-span-2 bg-white rounded-2xl border border-slate-200 shadow flex flex-col">
+            <div className="px-5 py-4 border-b border-slate-200">
+              <div className="h-5 w-40 bg-slate-200 rounded animate-pulse"></div>
+            </div>
+            <div className="px-5 py-4 space-y-3 overflow-auto max-h-[60vh]">
+              {Array.from({ length: 6 }).map((_, i) => (
+                <div key={i} className="flex items-center justify-between border border-slate-200 rounded-xl p-3 bg-slate-50">
+                  <div className="flex items-center gap-3">
+                    <div className="h-5 w-16 bg-slate-200 rounded-full animate-pulse"></div>
+                    <div className="h-8 w-24 bg-slate-200 rounded animate-pulse"></div>
+                  </div>
+                  <div className="h-7 w-20 bg-slate-200 rounded animate-pulse"></div>
+                </div>
+              ))}
+            </div>
+            <div className="px-5 py-4 border-t border-slate-200 flex items-center gap-4">
+              <div className="h-9 w-32 bg-slate-200 rounded animate-pulse"></div>
+            </div>
+          </div>
+        </div>
+      </section>
+    );
+  }
 
   return (
     <section className=" bg-slate-50 px-4 py-6 border-b border-slate-200">
