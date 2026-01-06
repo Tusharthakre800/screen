@@ -279,6 +279,7 @@
   const RELOAD_INTERVAL_MS = 15000;
   const STATUS_THRESHOLD_MS = 30000;
   const STORAGE_KEY = 'signage_playlist';
+  const STATE_KEY = 'player_resume_state';
 
   let lastPingAt = 0;
 
@@ -340,12 +341,44 @@
     return '';
   }
 
+  function getResumeState() {
+    try {
+      const raw = localStorage.getItem(STATE_KEY);
+      return raw ? JSON.parse(raw) : null;
+    } catch { return null; }
+  }
+  function saveResumeVideo(contentId, currentTimeSec) {
+    try {
+      localStorage.setItem(STATE_KEY, JSON.stringify({ kind: 'video', contentId, t: currentTimeSec }));
+    } catch {}
+  }
+  function saveResumeImage(contentId, startedAtMs, durationMs) {
+    try {
+      localStorage.setItem(STATE_KEY, JSON.stringify({ kind: 'image', contentId, startedAt: startedAtMs, dur: durationMs }));
+    } catch {}
+  }
+  function clearResume() {
+    try { localStorage.removeItem(STATE_KEY); } catch {}
+  }
+
   let epoch = 0;
+  let lastSig = null;
   function playPlaylistLoop(list) {
     const v = document.getElementById("video");
     const i = document.getElementById("image");
     const myEpoch = ++epoch;
+    const resume = getResumeState();
     let idx = 0;
+    let seekSec = null;
+    if (resume && resume.contentId) {
+      const found = list.findIndex((x) => String(x.contentId) === String(resume.contentId));
+      if (found >= 0) {
+        idx = found;
+        if (resume.kind === 'video' && typeof resume.t === 'number' && resume.t > 0) {
+          seekSec = resume.t;
+        }
+      }
+    }
 
     async function next() {
       if (myEpoch !== epoch) return;
@@ -365,13 +398,41 @@
         v.src = url;
         i.classList.add("hidden");
         v.classList.remove("hidden");
+        v.onloadedmetadata = () => {
+          if (seekSec && myEpoch === epoch) {
+            try { v.currentTime = seekSec; } catch {}
+            seekSec = null;
+          }
+        };
         try { await v.play(); } catch {}
-        v.onended = () => { idx = (idx + 1) % list.length; next(); };
+        v.ontimeupdate = () => {
+          if (myEpoch !== epoch) return;
+          saveResumeVideo(e.contentId, Math.floor(v.currentTime || 0));
+        };
+        v.onended = () => {
+          if (myEpoch !== epoch) return;
+          clearResume();
+          idx = (idx + 1) % list.length;
+          next();
+        };
       } else {
         i.src = url;
         v.classList.add("hidden");
         i.classList.remove("hidden");
-        setTimeout(() => { idx = (idx + 1) % list.length; next(); }, (e.durationSec || 10) * 1000);
+        const durMs = Math.max(1000, (e.durationSec || 10) * 1000);
+        const resumeImg = resume && resume.kind === 'image' && String(resume.contentId) === String(e.contentId) ? resume : null;
+        let remaining = durMs;
+        if (resumeImg && typeof resumeImg.startedAt === 'number' && typeof resumeImg.dur === 'number') {
+          const elapsed = Date.now() - resumeImg.startedAt;
+          remaining = Math.max(250, resumeImg.dur - elapsed);
+        }
+        saveResumeImage(e.contentId, Date.now(), durMs);
+        setTimeout(() => {
+          if (myEpoch !== epoch) return;
+          clearResume();
+          idx = (idx + 1) % list.length;
+          next();
+        }, remaining);
       }
     }
     next();
@@ -379,14 +440,21 @@
 
   async function reloadPlaylist() {
     const d = await loadPlaylistOnce();
-    playPlaylistLoop(d.playlist || []);
+    const list = d.playlist || [];
+    const sig = JSON.stringify(list.map((e) => String(e.contentId)));
+    if (sig !== lastSig) {
+      lastSig = sig;
+      playPlaylistLoop(list);
+    }
   }
 
   (async function start() {
     ping();
     setInterval(ping, PING_INTERVAL_MS);
     const d = await loadPlaylistOnce();
-    playPlaylistLoop(d.playlist || []);
+    const list = d.playlist || [];
+    lastSig = JSON.stringify(list.map((e) => String(e.contentId)));
+    playPlaylistLoop(list);
     setInterval(reloadPlaylist, RELOAD_INTERVAL_MS);
   })();
 </script>
