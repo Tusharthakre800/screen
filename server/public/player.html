@@ -66,15 +66,25 @@
       background: #ff3b3b;
       box-shadow: 0 0 20px #ff3b3b;
     }
+    #transition {
+      position: fixed;
+      inset: 0;
+      background: #000;
+      opacity: 0;
+      transition: opacity 180ms ease;
+      pointer-events: none;
+      z-index: 18;
+    }
+    #transition.show { opacity: 1; }
   </style>
 </head>
 
 <body>
 
   <!-- CONTROLS -->
-  <div id="controls">
+  <!-- <div id="controls">
     <button onclick="location.reload()">Refresh</button>
-  </div>
+  </div> -->
 
   <!-- CONTENT -->
   <div id="stage">
@@ -84,6 +94,7 @@
 
   <!-- STATUS DOT -->
   <div id="status" class="offline"></div>
+  <div id="transition"></div>
 
 <script>
   const search = new URLSearchParams(location.search);
@@ -196,6 +207,8 @@
       const url = resolveUrl(e);
 
       if (e.type === "video") {
+        const tr = document.getElementById("transition");
+        tr.classList.add("show");
         v.src = url;
         i.classList.add("hidden");
         v.classList.remove("hidden");
@@ -205,12 +218,16 @@
           }
         };
         try { await v.play(); } catch {}
+        setTimeout(() => { tr.classList.remove("show"); }, 180);
         v.onended = () => { idx = (idx + 1) % list.length; next(); };
       } else {
+        const tr = document.getElementById("transition");
+        tr.classList.add("show");
         i.src = url;
         v.classList.add("hidden");
         i.classList.remove("hidden");
         const waitMs = (e.durationSec || 10) * 1000;
+        setTimeout(() => { tr.classList.remove("show"); }, 180);
         setTimeout(() => { idx = (idx + 1) % list.length; next(); }, waitMs);
       }
     }
