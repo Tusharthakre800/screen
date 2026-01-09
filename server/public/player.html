@@ -44,13 +44,13 @@
       cursor: pointer;
     }
 
-    /* STATUS DOT */
+    /* ===== STATUS DOT (BOTTOM LEFT, DOUBLE SIZE) ===== */
     #status {
       position: fixed;
       bottom: 18px;
       left: 18px;
-      width: 36px;
-      height: 36px;
+      width: 36px;          /* double size */
+      height: 36px;         /* double size */
       border-radius: 50%;
       z-index: 25;
       opacity: 0.95;
@@ -93,9 +93,10 @@
   if (paramApiBase) localStorage.setItem('apiBase', paramApiBase);
 
   const PING_INTERVAL_MS = 10000;
-  const RELOAD_INTERVAL_MS = 20000;
+  const RELOAD_INTERVAL_MS = 15000;
   const STATUS_THRESHOLD_MS = 30000;
   const STORAGE_KEY = 'signage_playlist';
+  const STATE_KEY = 'player_resume_state';
 
   let lastPingAt = 0;
 
@@ -109,7 +110,8 @@
   }
 
   function updateStatusUI(isOnline) {
-    document.getElementById("status").className = isOnline ? "online" : "offline";
+    const el = document.getElementById("status");
+    el.className = isOnline ? "online" : "offline";
   }
 
   async function ping() {
@@ -122,6 +124,7 @@
           info: { ua: navigator.userAgent, online: navigator.onLine }
         })
       });
+
       lastPingAt = Date.now();
       updateStatusUI(true);
     } catch {
@@ -155,15 +158,46 @@
     return '';
   }
 
-  let epoch = 0;
+  function getResumeState() {
+    try {
+      const raw = localStorage.getItem(STATE_KEY);
+      return raw ? JSON.parse(raw) : null;
+    } catch { return null; }
+  }
+  function saveResumeVideo(contentId, currentTimeSec) {
+    try {
+      localStorage.setItem(STATE_KEY, JSON.stringify({ kind: 'video', contentId, t: currentTimeSec }));
+    } catch {}
+  }
+  function saveResumeImage(contentId, startedAtMs, durationMs) {
+    try {
+      localStorage.setItem(STATE_KEY, JSON.stringify({ kind: 'image', contentId, startedAt: startedAtMs, dur: durationMs }));
+    } catch {}
+  }
+  function clearResume() {
+    try { localStorage.removeItem(STATE_KEY); } catch {}
+  }
 
+  let epoch = 0;
+  let lastSig = null;
   function playPlaylistLoop(list) {
     const v = document.getElementById("video");
     const i = document.getElementById("image");
     const myEpoch = ++epoch;
+    const resume = getResumeState();
     let idx = 0;
+    let seekSec = null;
+    if (resume && resume.contentId) {
+      const found = list.findIndex((x) => String(x.contentId) === String(resume.contentId));
+      if (found >= 0) {
+        idx = found;
+        if (resume.kind === 'video' && typeof resume.t === 'number' && resume.t > 0) {
+          seekSec = resume.t;
+        }
+      }
+    }
 
-    function next() {
+    async function next() {
       if (myEpoch !== epoch) return;
 
       if (!list.length) {
@@ -181,8 +215,20 @@
         v.src = url;
         i.classList.add("hidden");
         v.classList.remove("hidden");
-        v.play().catch(() => {});
+        v.onloadedmetadata = () => {
+          if (seekSec && myEpoch === epoch) {
+            try { v.currentTime = seekSec; } catch {}
+            seekSec = null;
+          }
+        };
+        try { await v.play(); } catch {}
+        v.ontimeupdate = () => {
+          if (myEpoch !== epoch) return;
+          saveResumeVideo(e.contentId, Math.floor(v.currentTime || 0));
+        };
         v.onended = () => {
+          if (myEpoch !== epoch) return;
+          clearResume();
           idx = (idx + 1) % list.length;
           next();
         };
@@ -190,10 +236,20 @@
         i.src = url;
         v.classList.add("hidden");
         i.classList.remove("hidden");
+        const durMs = Math.max(1000, (e.durationSec || 10) * 1000);
+        const resumeImg = resume && resume.kind === 'image' && String(resume.contentId) === String(e.contentId) ? resume : null;
+        let remaining = durMs;
+        if (resumeImg && typeof resumeImg.startedAt === 'number' && typeof resumeImg.dur === 'number') {
+          const elapsed = Date.now() - resumeImg.startedAt;
+          remaining = Math.max(250, resumeImg.dur - elapsed);
+        }
+        saveResumeImage(e.contentId, Date.now(), durMs);
         setTimeout(() => {
+          if (myEpoch !== epoch) return;
+          clearResume();
           idx = (idx + 1) % list.length;
           next();
-        }, (e.durationSec || 10) * 1000);
+        }, remaining);
       }
     }
     next();
@@ -201,11 +257,11 @@
 
   async function reloadPlaylist() {
     const d = await loadPlaylistOnce();
-    const latest = d.playlist || [];
-    const sig = JSON.stringify(latest.map(e => resolveUrl(e)));
-    if (sig !== window._sig) {
-      window._sig = sig;
-      playPlaylistLoop(latest);
+    const list = d.playlist || [];
+    const sig = JSON.stringify(list.map((e) => String(e.contentId)));
+    if (sig !== lastSig) {
+      lastSig = sig;
+      playPlaylistLoop(list);
     }
   }
 
@@ -213,8 +269,9 @@
     ping();
     setInterval(ping, PING_INTERVAL_MS);
     const d = await loadPlaylistOnce();
-    window._sig = JSON.stringify((d.playlist || []).map(e => resolveUrl(e)));
-    playPlaylistLoop(d.playlist || []);
+    const list = d.playlist || [];
+    lastSig = JSON.stringify(list.map((e) => String(e.contentId)));
+    playPlaylistLoop(list);
     setInterval(reloadPlaylist, RELOAD_INTERVAL_MS);
   })();
 </script>
