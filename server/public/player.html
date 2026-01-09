@@ -99,8 +99,20 @@ function resolveUrl(e){
 }
 
 /* ---------- PLAY ITEM ---------- */
+// function playCurrent(){
+//   if(!playlist.length) return;
+
 function playCurrent(){
-  if(!playlist.length) return;
+  if(!playlist.length){
+    // offline me last content chalne do
+    if(!video.classList.contains("hidden") && !video.paused){
+      return;
+    }
+    image.classList.remove("hidden");
+    image.src = image.src || "/offline.jpg";
+    return;
+  }
+
 
   clearTimeout(timer);
   const e = playlist[index];
@@ -146,6 +158,9 @@ setInterval(async ()=>{
 
 /* ---------- NETWORK EVENTS ---------- */
 window.addEventListener("offline",()=>setStatus(false));
+window.addEventListener("offline",()=>{
+  console.log("Offline – reload blocked");
+});
 window.addEventListener("online",()=>location.reload());
 </script>
 
