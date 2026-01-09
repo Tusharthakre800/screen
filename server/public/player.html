@@ -30,145 +30,257 @@
     }
 
     .hidden {
-      display: none
+      display: none;
     }
 
+    #controls {
+      position: fixed;
+      top: 10px;
+      left: 10px;
+      z-index: 30;
+    }
+
+    #controls button {
+      background: rgba(255, 255, 255, 0.9);
+      color: #111;
+      border: none;
+      border-radius: 6px;
+      padding: 8px 12px;
+      cursor: pointer;
+    }
+
+    /* ===== STATUS DOT (BOTTOM LEFT, DOUBLE SIZE) ===== */
     #status {
       position: fixed;
       bottom: 18px;
       left: 18px;
       width: 36px;
+      /* double size */
       height: 36px;
+      /* double size */
       border-radius: 50%;
-      z-index: 20;
-      opacity: .9
+      z-index: 25;
+      opacity: 0.95;
     }
 
     #status.online {
       background: #00ff00;
-      box-shadow: 0 0 18px #00ff00
+      box-shadow: 0 0 20px #00ff00;
     }
 
     #status.offline {
       background: #ff3b3b;
-      box-shadow: 0 0 18px #ff3b3b
+      box-shadow: 0 0 20px #ff3b3b;
     }
   </style>
 </head>
 
 <body>
 
-  <div id="stage">
-    <video id="video" class="hidden" autoplay muted playsinline></video>
-    <img id="image" class="hidden" src="/offline.jpg">
+  <!-- CONTROLS -->
+  <div id="controls">
+    <button onclick="location.reload()">Refresh</button>
   </div>
 
+  <!-- CONTENT -->
+  <div id="stage">
+    <video id="video" class="hidden" autoplay muted playsinline></video>
+    <img id="image" class="hidden" />
+  </div>
+
+  <!-- STATUS DOT -->
   <div id="status" class="offline"></div>
 
   <script>
-    const API_BASE = location.search.includes("api=")
-      ? new URLSearchParams(location.search).get("api")
-      : location.origin;
+    const search = new URLSearchParams(location.search);
+    const paramApiBase = search.get('api') || localStorage.getItem('apiBase');
+    const isFile = location.protocol === 'file:';
+    const defaultApiBase = isFile ? 'http://localhost:5000' : location.origin;
+    const API_BASE = paramApiBase || defaultApiBase;
+    if (paramApiBase) localStorage.setItem('apiBase', paramApiBase);
 
-    const STORAGE_KEY = "signage_playlist";
-    const STATE_KEY = "resume_state";
+    const PING_INTERVAL_MS = 10000;
+    const RELOAD_INTERVAL_MS = 15000;
+    const STATUS_THRESHOLD_MS = 30000;
+    const STORAGE_KEY = 'signage_playlist';
+    const STATE_KEY = 'player_resume_state';
 
-    const video = document.getElementById("video");
-    const image = document.getElementById("image");
-    const statusDot = document.getElementById("status");
+    let lastPingAt = 0;
 
-    let epoch = 0;
-    let lastSig = null;
-
-    /* ---------- STATUS DOT ---------- */
-    function setStatus(ok) {
-      statusDot.className = ok ? "online" : "offline";
+    function getDeviceId() {
+      let id = localStorage.getItem('playerId');
+      if (!id) {
+        id = 'device_' + Math.random().toString(36).slice(2, 10);
+        localStorage.setItem('playerId', id);
+      }
+      return id;
     }
 
-    /* ---------- FETCH PLAYLIST (OFFLINE SAFE) ---------- */
-    async function loadPlaylist() {
+    function updateStatusUI(isOnline) {
+      const el = document.getElementById("status");
+      el.className = isOnline ? "online" : "offline";
+    }
+
+    async function ping() {
       try {
-        const r = await fetch(`${API_BASE}/api/player`, { cache: "no-store" });
-        if (!r.ok) throw "";
-        const d = await r.json();
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(d));
-        setStatus(true);
-        return d;
+        await fetch(`${API_BASE}/api/player/ping`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            playerId: getDeviceId(),
+            info: { ua: navigator.userAgent, online: navigator.onLine }
+          })
+        });
+
+        lastPingAt = Date.now();
+        updateStatusUI(true);
       } catch {
-        setStatus(false);
-        const c = localStorage.getItem(STORAGE_KEY);
-        return c ? JSON.parse(c) : { playlist: [] };
+        updateStatusUI(false);
       }
     }
 
-    /* ---------- URL RESOLVE ---------- */
+    setInterval(() => {
+      updateStatusUI(Date.now() - lastPingAt < STATUS_THRESHOLD_MS);
+    }, 5000);
+
+    async function loadPlaylistOnce() {
+      try {
+        const res = await fetch(`${API_BASE}/api/player`, { cache: 'no-store' });
+        if (!res.ok) throw new Error();
+        const data = await res.json();
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+        return data;
+      } catch {
+        const cached = localStorage.getItem(STORAGE_KEY);
+        return cached ? JSON.parse(cached) : { playlist: [] };
+      }
+    }
+
     function resolveUrl(e) {
       if (e.publicUrl) {
         if (/^https?:\/\//i.test(e.publicUrl)) return e.publicUrl;
-        return API_BASE + (e.publicUrl.startsWith("/") ? "" : "/") + e.publicUrl;
+        return `${API_BASE}${e.publicUrl.startsWith('/') ? '' : '/'}${e.publicUrl}`;
       }
       if (e.storedFilename) return `${API_BASE}/uploads/${e.storedFilename}`;
-      return "";
+      return '';
     }
 
-    /* ---------- PLAY LOOP (NO BLANK EVER) ---------- */
-    function playLoop(list) {
-      if (!list.length) return; // ❗ NOTHING CLEARED
+    function getResumeState() {
+      try {
+        const raw = localStorage.getItem(STATE_KEY);
+        return raw ? JSON.parse(raw) : null;
+      } catch { return null; }
+    }
+    function saveResumeVideo(contentId, currentTimeSec) {
+      try {
+        localStorage.setItem(STATE_KEY, JSON.stringify({ kind: 'video', contentId, t: currentTimeSec }));
+      } catch { }
+    }
+    function saveResumeImage(contentId, startedAtMs, durationMs) {
+      try {
+        localStorage.setItem(STATE_KEY, JSON.stringify({ kind: 'image', contentId, startedAt: startedAtMs, dur: durationMs }));
+      } catch { }
+    }
+    function clearResume() {
+      try { localStorage.removeItem(STATE_KEY); } catch { }
+    }
 
+    let epoch = 0;
+    let lastSig = null;
+    function playPlaylistLoop(list) {
+      const v = document.getElementById("video");
+      const i = document.getElementById("image");
       const myEpoch = ++epoch;
+      const resume = getResumeState();
       let idx = 0;
+      let seekSec = null;
+      if (resume && resume.contentId) {
+        const found = list.findIndex((x) => String(x.contentId) === String(resume.contentId));
+        if (found >= 0) {
+          idx = found;
+          if (resume.kind === 'video' && typeof resume.t === 'number' && resume.t > 0) {
+            seekSec = resume.t;
+          }
+        }
+      }
 
-      function next() {
+      async function next() {
         if (myEpoch !== epoch) return;
+
+        if (!list.length) {
+          i.classList.remove("hidden");
+          v.classList.add("hidden");
+          i.src = "";
+          setTimeout(next, 3000);
+          return;
+        }
 
         const e = list[idx];
         const url = resolveUrl(e);
 
         if (e.type === "video") {
-          video.src = url;
-          image.classList.add("hidden");
-          video.classList.remove("hidden");
-          video.play().catch(() => { });
-          video.onended = () => {
+          v.src = url;
+          i.classList.add("hidden");
+          v.classList.remove("hidden");
+          v.onloadedmetadata = () => {
+            if (seekSec && myEpoch === epoch) {
+              try { v.currentTime = seekSec; } catch { }
+              seekSec = null;
+            }
+          };
+          try { await v.play(); } catch { }
+          v.ontimeupdate = () => {
+            if (myEpoch !== epoch) return;
+            saveResumeVideo(e.contentId, Math.floor(v.currentTime || 0));
+          };
+          v.onended = () => {
+            if (myEpoch !== epoch) return;
+            clearResume();
             idx = (idx + 1) % list.length;
             next();
           };
         } else {
-          image.src = url;
-          video.classList.add("hidden");
-          image.classList.remove("hidden");
+          i.src = url;
+          v.classList.add("hidden");
+          i.classList.remove("hidden");
+          const durMs = Math.max(1000, (e.durationSec || 10) * 1000);
+          const resumeImg = resume && resume.kind === 'image' && String(resume.contentId) === String(e.contentId) ? resume : null;
+          let remaining = durMs;
+          if (resumeImg && typeof resumeImg.startedAt === 'number' && typeof resumeImg.dur === 'number') {
+            const elapsed = Date.now() - resumeImg.startedAt;
+            remaining = Math.max(250, resumeImg.dur - elapsed);
+          }
+          saveResumeImage(e.contentId, Date.now(), durMs);
           setTimeout(() => {
+            if (myEpoch !== epoch) return;
+            clearResume();
             idx = (idx + 1) % list.length;
             next();
-          }, (e.durationSec || 10) * 1000);
+          }, remaining);
         }
       }
       next();
     }
 
-    /* ---------- INITIAL START ---------- */
-    (async function start() {
-      const d = await loadPlaylist();
+    async function reloadPlaylist() {
+      const d = await loadPlaylistOnce();
       const list = d.playlist || [];
-      lastSig = JSON.stringify(list.map(x => x.contentId));
-      playLoop(list);
-    })();
-
-    /* ---------- RELOAD ONLY WHEN ONLINE ---------- */
-    setInterval(async () => {
-      if (!navigator.onLine) return;
-      const d = await loadPlaylist();
-      const list = d.playlist || [];
-      const sig = JSON.stringify(list.map(x => x.contentId));
+      const sig = JSON.stringify(list.map((e) => String(e.contentId)));
       if (sig !== lastSig) {
         lastSig = sig;
-        playLoop(list);
+        playPlaylistLoop(list);
       }
-    }, 15000);
+    }
 
-    /* ---------- NETWORK EVENTS ---------- */
-    window.addEventListener("offline", () => setStatus(false));
-    window.addEventListener("online", () => location.reload());
+    (async function start() {
+      ping();
+      setInterval(ping, PING_INTERVAL_MS);
+      const d = await loadPlaylistOnce();
+      const list = d.playlist || [];
+      lastSig = JSON.stringify(list.map((e) => String(e.contentId)));
+      playPlaylistLoop(list);
+      setInterval(reloadPlaylist, RELOAD_INTERVAL_MS);
+    })();
   </script>
 
 </body>
