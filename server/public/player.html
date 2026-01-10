@@ -1,4 +1,4 @@
-<!doctype html>
+<!-- <!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8" />
@@ -152,4 +152,174 @@ window.addEventListener("online",()=>location.reload());
 </script>
 
 </body>
+</html> -->
+
+
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Signage Player</title>
+
+<style>
+html,body{
+  height:100%;
+  width:100%;
+  margin:0;
+  background:#000;
+  overflow:hidden;
+  font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;
+}
+#stage{position:fixed;inset:0}
+video,img{
+  position:absolute;
+  inset:0;
+  width:100%;
+  height:100%;
+  object-fit:contain;
+}
+.hidden{display:none}
+
+#status{
+  position:fixed;
+  bottom:18px;
+  left:18px;
+  width:36px;
+  height:36px;
+  border-radius:50%;
+  z-index:20;
+  opacity:.95;
+}
+#status.online{background:#00ff00;box-shadow:0 0 18px #00ff00}
+#status.offline{background:#ff3b3b;box-shadow:0 0 18px #ff3b3b}
+</style>
+</head>
+
+<body>
+
+<div id="stage">
+  <video id="video" autoplay muted playsinline></video>
+  <img id="image" src="/offline.jpg" class="hidden">
+</div>
+
+<div id="status" class="offline"></div>
+
+<script>
+const API_BASE = location.search.includes("api=")
+  ? new URLSearchParams(location.search).get("api")
+  : location.origin;
+
+const STORAGE_KEY = "signage_playlist";
+const statusDot = document.getElementById("status");
+const video = document.getElementById("video");
+const image = document.getElementById("image");
+
+let playlist = [];
+let index = 0;
+let timer = null;
+
+/* ---------- STATUS ---------- */
+function setStatus(ok){
+  statusDot.className = ok ? "online" : "offline";
+}
+
+/* ---------- LOAD PLAYLIST (OFFLINE SAFE) ---------- */
+async function loadPlaylist(){
+  try{
+    const r = await fetch(`${API_BASE}/api/player`,{cache:"no-store"});
+    if(!r.ok) throw "";
+    const d = await r.json();
+    localStorage.setItem(STORAGE_KEY,JSON.stringify(d));
+    setStatus(true);
+    return d.playlist || [];
+  }catch{
+    setStatus(false);
+    const c = localStorage.getItem(STORAGE_KEY);
+    return c ? (JSON.parse(c).playlist || []) : [];
+  }
+}
+
+/* ---------- URL ---------- */
+function resolveUrl(e){
+  if(e.publicUrl){
+    if(/^https?:\/\//i.test(e.publicUrl)) return e.publicUrl;
+    return API_BASE + (e.publicUrl.startsWith("/")?"":"/") + e.publicUrl;
+  }
+  if(e.storedFilename) return `${API_BASE}/uploads/${e.storedFilename}`;
+  return "";
+}
+
+/* ---------- SAFE PLAY ---------- */
+function playCurrent(){
+  if(!playlist.length){
+    // 🔒 OFFLINE FAILSAFE: kuch bhi hide/clear mat karo
+    return;
+  }
+
+  if(index >= playlist.length || index < 0){
+    index = 0; // safety reset
+  }
+
+  clearTimeout(timer);
+
+  const e = playlist[index];
+  if(!e) return;
+
+  const url = resolveUrl(e);
+
+  if(e.type==="video"){
+    image.classList.add("hidden");
+    video.classList.remove("hidden");
+    if(video.src !== url) video.src = url;
+    video.play().catch(()=>{});
+    video.onended = next;
+  }else{
+    video.pause();
+    video.classList.add("hidden");
+    image.classList.remove("hidden");
+    image.src = url;
+    timer = setTimeout(next,(e.durationSec||10)*1000);
+  }
+}
+
+/* ---------- NEXT (SAFE) ---------- */
+function next(){
+  if(!playlist.length) return;
+  index++;
+  if(index >= playlist.length) index = 0;
+  playCurrent();
+}
+
+/* ---------- START ---------- */
+(async function start(){
+  playlist = await loadPlaylist();
+  index = 0;
+  playCurrent();
+})();
+
+/* ---------- AUTO REFRESH (ONLINE ONLY) ---------- */
+setInterval(async ()=>{
+  if(!navigator.onLine) return;
+
+  const fresh = await loadPlaylist();
+  if(!fresh.length) return;
+
+  const oldSig = JSON.stringify(playlist.map(x=>x.contentId));
+  const newSig = JSON.stringify(fresh.map(x=>x.contentId));
+
+  if(oldSig !== newSig){
+    playlist = fresh;
+    index = 0;
+    playCurrent();
+  }
+},15000);
+
+/* ---------- NETWORK EVENTS ---------- */
+window.addEventListener("offline",()=>setStatus(false));
+window.addEventListener("online",()=>location.reload());
+</script>
+
+</body>
 </html>
+
