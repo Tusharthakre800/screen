@@ -1,0 +1,8 @@
+# Environment Variables for the Application
+node_modules/
+dist/
+
+# Ignore IDE specific files
+.idea/
+.vscode/
+.env
